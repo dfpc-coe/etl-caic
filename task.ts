@@ -32,7 +32,16 @@ export default class Task extends ETL {
             return {
                 type: 'object',
                 required: [],
-                properties: {}
+                properties: {
+                    forecaster: { type: 'string' },
+                    issueDateTime: { type: 'string' },
+                    expiryDateTime: { type: 'string' },
+                    isTranslated: { type: 'boolean' },
+                    rating: { type: 'string' },
+                    ratingAbove: { type: 'string' },
+                    ratingNear: { type: 'string' },
+                    ratingBelow: { type: 'string' },
+                }
             }
         }
     }
@@ -41,36 +50,64 @@ export default class Task extends ETL {
         //const layer = await this.layer();
 
         const dateTime = moment().toISOString();
-        const res = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%2Farea%3FproductType%3Davalancheforecast%26datetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dtrue`, {
+        const res = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%2Farea%3FproductType%3Davalancheforecast%26datetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dfalse`, {
             method: 'GET'
         });
 
         if (!res.ok) throw new Error('Error fetching Forecast Geometries');
 
-        const feats: FeatureCollection = await res.json();
         const featMap = new Map<string, Feature>();
-        feats.features.map((feat: Feature) => {
+        (await res.json()).features.map((feat: Feature) => {
             featMap.set(String(feat.id), feat);
         });
 
-        //const res2 = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%3Fdatetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dtrue`, {
-        //    method: 'GET'
-        //});
-        //
-        //if (!res2.ok) throw new Error('Error fetching Forecast');
-        //const forecast = await res2.json();
+        const res2 = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%3Fdatetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dfalse`, {
+            method: 'GET'
+        });
+
+        if (!res2.ok) throw new Error('Error fetching Forecast');
+        const products = await res2.json();
 
         const fc: FeatureCollection = {
             type: 'FeatureCollection',
             features: []
         };
 
-        fc.features = Array.from(featMap.values()).map((feat: Feature) => {
-            feat.id = `caic-${feat.id}`;
-            delete feat.properties.centroid;
-            delete feat.properties.bbox;
-            return feat;
-        });
+        const forecasts: Array<{
+            id: string;
+            title: string;
+            publicName: string;
+            type: string;
+            polygons: Array<string>;
+            areaId: string;
+            forecaster: string;
+            issueDateTime: string;
+            expiryDateTime: string;
+            isTranslated: boolean;
+            weatherSummary: unknown;
+        }> = products.filter((f: any) => { return f.type === 'avalancheforecast' });
+
+        for (const f of forecasts) {
+            if (!featMap.has(f.areaId)) continue;
+
+            console.error(JSON.stringify(f));
+            fc.features.push({
+                id: `caic-${f.areaId}`,
+                type: 'Feature',
+                properties: {
+                    callsign: f.title,
+                    forecaster: f.forecaster,
+                    issueDateTime: f.issueDateTime,
+                    expiryDateTime: f.expiryDateTime,
+                    isTranslated: f.isTranslated,
+                    remarks: f.avalancheSummary.days[0],
+                    ratingAbove: f.dangerRatings.days[0].alp,
+                    ratingNear: f.dangerRatings.days[0].tln,
+                    ratingBelow: f.dangerRatings.days[0].btl,
+                },
+                geometry: featMap.get(f.areaId).geometry
+            });
+        };
 
         await this.submit(fc);
     }
