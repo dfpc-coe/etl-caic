@@ -85,13 +85,25 @@ export default class Task extends ETL {
             expiryDateTime: string;
             isTranslated: boolean;
             weatherSummary: unknown;
+            avalancheSummary: {
+                days: Array<{
+                    date: string;
+                    content: string;
+                }>
+            }
+            dangerRatings: {
+                days: Array<{
+                    alp: string;
+                    tln: string;
+                    btl: string;
+                }>
+            }
         }> = products.filter((f: any) => { return f.type === 'avalancheforecast' });
 
         for (const f of forecasts) {
             if (!featMap.has(f.areaId)) continue;
 
-            console.error(JSON.stringify(f));
-            fc.features.push({
+            const feature: Feature = {
                 id: `caic-${f.areaId}`,
                 type: 'Feature',
                 properties: {
@@ -100,14 +112,34 @@ export default class Task extends ETL {
                     issueDateTime: f.issueDateTime,
                     expiryDateTime: f.expiryDateTime,
                     isTranslated: f.isTranslated,
-                    remarks: f.avalancheSummary.days[0],
+                    remarks: f.avalancheSummary.days[0].content,
                     ratingAbove: f.dangerRatings.days[0].alp,
                     ratingNear: f.dangerRatings.days[0].tln,
                     ratingBelow: f.dangerRatings.days[0].btl,
                 },
                 geometry: featMap.get(f.areaId).geometry
-            });
+            };
+
+            if (feature.geometry.type.startsWith('Multi')) {
+                // @ts-ignore -- Geometry Collections could technically be here
+                feature.geometry.coordinates.forEach((coords: any, idx: number) => {
+                    fc.features.push({
+                        id: feature.id + '-' + idx,
+                        type: 'Feature',
+                        properties: feature.properties,
+                        geometry: {
+                            // @ts-ignore -- Cast to ENUM
+                            type: feature.geometry.type.replace('Multi', ''),
+                            coordinates: coords
+                        }
+                    });
+                });
+            } else {
+                fc.features.push(feature)
+            }
         };
+
+        console.error(fc.features[0].properties);
 
         await this.submit(fc);
     }
