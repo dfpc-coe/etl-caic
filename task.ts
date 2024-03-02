@@ -100,6 +100,15 @@ export default class Task extends ETL {
             }
         }> = products.filter((f: any) => { return f.type === 'avalancheforecast' });
 
+        const fills: Record<string, string> = {
+            extreme: '#221e1f',
+            high: '#ee1d23',
+            considerable: '#f8931d',
+            moderate: '#fef102',
+            low: '#4db748',
+            noRating: '#ffffff'
+        };
+
         for (const f of forecasts) {
             if (!featMap.has(f.areaId)) continue;
 
@@ -108,11 +117,15 @@ export default class Task extends ETL {
                 type: 'Feature',
                 properties: {
                     callsign: f.title,
+                    fill: fills[f.dangerRatings.days[0].alp],
+                    'fill-opacity': 128,
+                    stroke: fills[f.dangerRatings.days[0].alp],
+                    'stroke-opacity': 200,
                     forecaster: f.forecaster,
                     issueDateTime: f.issueDateTime,
                     expiryDateTime: f.expiryDateTime,
                     isTranslated: f.isTranslated,
-                    remarks: f.avalancheSummary.days[0].content,
+                    remarks: f.avalancheSummary.days.length ? f.avalancheSummary.days[0].content : 'No Remarks',
                     ratingAbove: f.dangerRatings.days[0].alp,
                     ratingNear: f.dangerRatings.days[0].tln,
                     ratingBelow: f.dangerRatings.days[0].btl,
@@ -138,8 +151,6 @@ export default class Task extends ETL {
                 fc.features.push(feature)
             }
         };
-
-        console.error(fc.features[0].properties);
 
         await this.submit(fc);
     }

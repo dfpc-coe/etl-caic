@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.2.0
+
+- :rocket: Output Colour data based on Above Treeline Rating
+
 ### v2.1.0
 
 - :rocket: Improved remarks & poly support
