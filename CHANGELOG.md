@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.3.1
+
+- :arrow_up: Update ETL Base
+
 ### v2.3.0
 
 - :rocket: Update metadata props
