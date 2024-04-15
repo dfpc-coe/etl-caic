@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.3.0
+
+- :rocket: Update metadata props
+
 ### v2.2.0
 
 - :rocket: Output Colour data based on Above Treeline Rating

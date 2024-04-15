@@ -1,48 +1,26 @@
 import fs from 'node:fs';
 import moment from 'moment';
 import { FeatureCollection, Feature } from 'geojson';
-import { JSONSchema6 } from 'json-schema';
-import ETL, { Event, SchemaType } from '@tak-ps/etl';
-
-try {
-    const dotfile = new URL('.env', import.meta.url);
-
-    fs.accessSync(dotfile);
-
-    Object.assign(process.env, JSON.parse(String(fs.readFileSync(dotfile))));
-} catch (err) {
-    console.log('ok - no .env file loaded');
-}
+import { TSchema, Type } from '@sinclair/typebox';
+import ETL, { Event, SchemaType, handler as internal, local, env } from '@tak-ps/etl';
 
 export default class Task extends ETL {
-    static async schema(type: SchemaType = SchemaType.Input): Promise<JSONSchema6> {
+    static async schema(type: SchemaType = SchemaType.Input): Promise<TSchema> {
         if (type === SchemaType.Input) {
-            return {
-                type: 'object',
-                required: [],
-                properties: {
-                    'DEBUG': {
-                        type: 'boolean',
-                        default: false,
-                        description: 'Print results in logs'
-                    }
-                }
-            }
+            return Type.Object({
+                'DEBUG': Type.Boolean({ description: 'Print results in logs', default: false, })
+            })
         } else {
-            return {
-                type: 'object',
-                required: [],
-                properties: {
-                    forecaster: { type: 'string' },
-                    issueDateTime: { type: 'string' },
-                    expiryDateTime: { type: 'string' },
-                    isTranslated: { type: 'boolean' },
-                    rating: { type: 'string' },
-                    ratingAbove: { type: 'string' },
-                    ratingNear: { type: 'string' },
-                    ratingBelow: { type: 'string' },
-                }
-            }
+            return Type.Object({
+                forecaster: Type.String(),
+                issueDateTime: Type.String({ format: 'date-time' }),
+                expiryDateTime: Type.String(),
+                isTranslated: Type.Boolean(),
+                rating: Type.String(),
+                ratingAbove: Type.String(),
+                ratingNear: Type.String(),
+                ratingBelow: Type.String()
+            });
         }
     }
 
@@ -121,14 +99,16 @@ export default class Task extends ETL {
                     'fill-opacity': 128,
                     stroke: fills[f.dangerRatings.days[0].alp],
                     'stroke-opacity': 200,
-                    forecaster: f.forecaster,
-                    issueDateTime: f.issueDateTime,
-                    expiryDateTime: f.expiryDateTime,
-                    isTranslated: f.isTranslated,
                     remarks: f.avalancheSummary.days.length ? f.avalancheSummary.days[0].content : 'No Remarks',
-                    ratingAbove: f.dangerRatings.days[0].alp,
-                    ratingNear: f.dangerRatings.days[0].tln,
-                    ratingBelow: f.dangerRatings.days[0].btl,
+                    metadata: {
+                        forecaster: f.forecaster,
+                        issueDateTime: f.issueDateTime,
+                        expiryDateTime: f.expiryDateTime,
+                        isTranslated: f.isTranslated,
+                        ratingAbove: f.dangerRatings.days[0].alp,
+                        ratingNear: f.dangerRatings.days[0].tln,
+                        ratingBelow: f.dangerRatings.days[0].btl,
+                    }
                 },
                 geometry: featMap.get(f.areaId).geometry
             };
@@ -156,15 +136,8 @@ export default class Task extends ETL {
     }
 }
 
+env(import.meta.url)
+await local(new Task(), import.meta.url);
 export async function handler(event: Event = {}) {
-    if (event.type === 'schema:input') {
-        return await Task.schema(SchemaType.Input);
-    } else if (event.type === 'schema:output') {
-        return await Task.schema(SchemaType.Output);
-    } else {
-        const task = new Task();
-        await task.control();
-    }
+    return await internal(new Task(), event);
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) handler();
