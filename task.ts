@@ -5,7 +5,7 @@ import { TSchema, Type } from '@sinclair/typebox';
 import ETL, { Event, SchemaType, handler as internal, local, env } from '@tak-ps/etl';
 
 export default class Task extends ETL {
-    static async schema(type: SchemaType = SchemaType.Input): Promise<TSchema> {
+    async schema(type: SchemaType = SchemaType.Input): Promise<TSchema> {
         if (type === SchemaType.Input) {
             return Type.Object({
                 'DEBUG': Type.Boolean({ description: 'Print results in logs', default: false, })

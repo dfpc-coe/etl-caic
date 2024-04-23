@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.3.2
+
+- :bug: Remove static from schema
+
 ### v2.3.1
 
 - :arrow_up: Update ETL Base
