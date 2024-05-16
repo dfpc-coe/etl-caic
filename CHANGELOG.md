@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.4.0
+
+- :rocket: Update to latest ESLint Config
+
 ### v2.3.2
 
 - :bug: Remove static from schema

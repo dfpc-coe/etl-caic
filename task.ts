@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import moment from 'moment';
 import { FeatureCollection, Feature } from 'geojson';
 import { TSchema, Type } from '@sinclair/typebox';
@@ -114,14 +113,14 @@ export default class Task extends ETL {
             };
 
             if (feature.geometry.type.startsWith('Multi')) {
-                // @ts-ignore -- Geometry Collections could technically be here
+                // @ts-expect-error -- Geometry Collections could technically be here
                 feature.geometry.coordinates.forEach((coords: any, idx: number) => {
                     fc.features.push({
                         id: feature.id + '-' + idx,
                         type: 'Feature',
                         properties: feature.properties,
                         geometry: {
-                            // @ts-ignore -- Cast to ENUM
+                            // @ts-expect-error -- Cast to ENUM
                             type: feature.geometry.type.replace('Multi', ''),
                             coordinates: coords
                         }
@@ -130,7 +129,7 @@ export default class Task extends ETL {
             } else {
                 fc.features.push(feature)
             }
-        };
+        }
 
         await this.submit(fc);
     }
