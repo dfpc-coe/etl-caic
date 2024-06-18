@@ -10,6 +10,14 @@
 
 ## Version History
 
+### v2.5.0
+
+- :rocket: New opacity values
+
+### v2.4.0
+
+- :rocket: Update to latest ESLint Config
+
 ### v2.4.0
 
 - :rocket: Update to latest ESLint Config

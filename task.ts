@@ -95,9 +95,9 @@ export default class Task extends ETL {
                 properties: {
                     callsign: f.title,
                     fill: fills[f.dangerRatings.days[0].alp],
-                    'fill-opacity': 128,
+                    'fill-opacity': 0.5,
                     stroke: fills[f.dangerRatings.days[0].alp],
-                    'stroke-opacity': 200,
+                    'stroke-opacity': 0.75,
                     remarks: f.avalancheSummary.days.length ? f.avalancheSummary.days[0].content : 'No Remarks',
                     metadata: {
                         forecaster: f.forecaster,
