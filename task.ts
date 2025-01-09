@@ -79,6 +79,8 @@ export default class Task extends ETL {
             }
         }> = products.filter((f: any) => { return f.type === 'avalancheforecast' });
 
+        let severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating' ];
+
         const fills: Record<string, string> = {
             extreme: '#221e1f',
             high: '#ee1d23',
@@ -94,14 +96,19 @@ export default class Task extends ETL {
             const featGeometry = featMap.get(f.areaId);
             if (!featGeometry) continue;
 
+            let severityIndex = severity.indexOf('noRating');
+            if (severity.indexOf(f.dangerRatings.days[0].btl) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].btl);
+            if (severity.indexOf(f.dangerRatings.days[0].tln) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].tln);
+            if (severity.indexOf(f.dangerRatings.days[0].alp) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].alp);
+
             const feature: Static<typeof InputFeature> = {
                 id: `caic-${f.areaId}`,
                 type: 'Feature',
                 properties: {
-                    callsign: f.title,
-                    fill: fills[f.dangerRatings.days[0].alp],
+                    callsign: severity[severityIndex],
+                    fill: fills[severity[severityIndex]],
                     'fill-opacity': 0.5,
-                    stroke: fills[f.dangerRatings.days[0].alp],
+                    stroke: fills[severity[severityIndex]],
                     'stroke-opacity': 0.75,
                     remarks: f.avalancheSummary.days.length ? f.avalancheSummary.days[0].content : 'No Remarks',
                     metadata: {

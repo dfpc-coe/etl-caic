@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.7.0
+
+- :tada: Full with highest danger level
+
 ### v2.6.0
 
 - :rocket: Remove geometries with no forecast
