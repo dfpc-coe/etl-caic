@@ -1,9 +1,11 @@
 import moment from 'moment';
-import { FeatureCollection, Feature } from 'geojson';
-import { TSchema, Type } from '@sinclair/typebox';
-import ETL, { Event, SchemaType, handler as internal, local, env } from '@tak-ps/etl';
+import { Static, TSchema, Type } from '@sinclair/typebox';
+import { Feature, Polygon } from 'geojson';
+import ETL, { Event, SchemaType, handler as internal, local, InputFeatureCollection, InputFeature } from '@tak-ps/etl';
 
 export default class Task extends ETL {
+    static name = 'etl-caic';
+
     async schema(type: SchemaType = SchemaType.Input): Promise<TSchema> {
         if (type === SchemaType.Input) {
             return Type.Object({
@@ -45,7 +47,7 @@ export default class Task extends ETL {
         if (!res2.ok) throw new Error('Error fetching Forecast');
         const products = await res2.json();
 
-        const fc: FeatureCollection = {
+        const fc: Static<typeof InputFeatureCollection> = {
             type: 'FeatureCollection',
             features: []
         };
@@ -87,9 +89,12 @@ export default class Task extends ETL {
         };
 
         for (const f of forecasts) {
-            if (!featMap.has(f.areaId)) continue;
+            if (!f.avalancheSummary.days.length) continue;
 
-            const feature: Feature = {
+            const featGeometry = featMap.get(f.areaId);
+            if (!featGeometry) continue;
+
+            const feature: Static<typeof InputFeature> = {
                 id: `caic-${f.areaId}`,
                 type: 'Feature',
                 properties: {
@@ -109,11 +114,10 @@ export default class Task extends ETL {
                         ratingBelow: f.dangerRatings.days[0].btl,
                     }
                 },
-                geometry: featMap.get(f.areaId).geometry
+                geometry: featGeometry.geometry as Polygon
             };
 
             if (feature.geometry.type.startsWith('Multi')) {
-                // @ts-expect-error -- Geometry Collections could technically be here
                 feature.geometry.coordinates.forEach((coords: any, idx: number) => {
                     fc.features.push({
                         id: feature.id + '-' + idx,
@@ -135,8 +139,8 @@ export default class Task extends ETL {
     }
 }
 
-env(import.meta.url)
-await local(new Task(), import.meta.url);
+await local(new Task(import.meta.url), import.meta.url);
+
 export async function handler(event: Event = {}) {
-    return await internal(new Task(), event);
+    return await internal(new Task(import.meta.url), event);
 }

@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.6.0
+
+- :rocket: Remove geometries with no forecast
+
 ### v2.5.0
 
 - :rocket: New opacity values
