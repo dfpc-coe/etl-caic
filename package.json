@@ -20,7 +20,7 @@
     },
     "dependencies": {
         "@sinclair/typebox": "^0.34.13",
-        "@tak-ps/etl": "^6.6.1",
+        "@tak-ps/etl": "^7.1.1",
         "@types/geojson": "^7946.0.10",
         "moment": "^2.29.4"
     }

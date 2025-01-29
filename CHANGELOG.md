@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.8.0
+
+- :tada: Implement Capabilities
+
 ### v2.7.0
 
 - :tada: Full with highest danger level

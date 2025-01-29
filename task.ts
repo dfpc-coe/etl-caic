@@ -1,27 +1,36 @@
 import moment from 'moment';
 import { Static, TSchema, Type } from '@sinclair/typebox';
 import { Feature, Polygon } from 'geojson';
-import ETL, { Event, SchemaType, handler as internal, local, InputFeatureCollection, InputFeature } from '@tak-ps/etl';
+import ETL, { Event, SchemaType, handler as internal, local, InputFeatureCollection, InputFeature, InvocationType, DataFlowType } from '@tak-ps/etl';
 
 export default class Task extends ETL {
     static name = 'etl-caic';
+    static flow = [ DataFlowType.Incoming ];
+    static invocation = [ InvocationType.Webhook, InvocationType.Schedule ];
 
-    async schema(type: SchemaType = SchemaType.Input): Promise<TSchema> {
-        if (type === SchemaType.Input) {
-            return Type.Object({
-                'DEBUG': Type.Boolean({ description: 'Print results in logs', default: false, })
-            })
+    async schema(
+        type: SchemaType = SchemaType.Input,
+        flow: DataFlowType = DataFlowType.Incoming
+    ): Promise<TSchema> {
+        if (flow === DataFlowType.Incoming) {
+            if (type === SchemaType.Input) {
+                return Type.Object({
+                    'DEBUG': Type.Boolean({ description: 'Print results in logs', default: false, })
+                })
+            } else {
+                return Type.Object({
+                    forecaster: Type.String(),
+                    issueDateTime: Type.String({ format: 'date-time' }),
+                    expiryDateTime: Type.String(),
+                    isTranslated: Type.Boolean(),
+                    rating: Type.String(),
+                    ratingAbove: Type.String(),
+                    ratingNear: Type.String(),
+                    ratingBelow: Type.String()
+                });
+            }
         } else {
-            return Type.Object({
-                forecaster: Type.String(),
-                issueDateTime: Type.String({ format: 'date-time' }),
-                expiryDateTime: Type.String(),
-                isTranslated: Type.Boolean(),
-                rating: Type.String(),
-                ratingAbove: Type.String(),
-                ratingNear: Type.String(),
-                ratingBelow: Type.String()
-            });
+            return Type.Object({});
         }
     }
 
@@ -79,7 +88,7 @@ export default class Task extends ETL {
             }
         }> = products.filter((f: any) => { return f.type === 'avalancheforecast' });
 
-        let severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating' ];
+        const severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating' ];
 
         const fills: Record<string, string> = {
             extreme: '#221e1f',
