@@ -10,6 +10,10 @@
 
 ## Version History
 
+### v2.8.1
+
+- :bug: Remove webhook type
+
 ### v2.8.0
 
 - :tada: Implement Capabilities
