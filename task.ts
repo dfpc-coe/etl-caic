@@ -90,6 +90,15 @@ export default class Task extends ETL {
 
         const severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating' ];
 
+        const humanSeverity: Record<string, string> = {
+            extreme: 'Extreme',
+            high: 'High',
+            considerable: 'Considerable',
+            moderate: 'Moderate',
+            low: 'Low',
+            noRating: 'No Rating'
+        }
+
         const fills: Record<string, string> = {
             extreme: '#221e1f',
             high: '#ee1d23',
@@ -114,7 +123,7 @@ export default class Task extends ETL {
                 id: `caic-${f.areaId}`,
                 type: 'Feature',
                 properties: {
-                    callsign: severity[severityIndex],
+                    callsign: humanSeverity[severity[severityIndex]],
                     fill: fills[severity[severityIndex]],
                     'fill-opacity': 0.5,
                     stroke: fills[severity[severityIndex]],
@@ -151,6 +160,7 @@ export default class Task extends ETL {
             }
         }
 
+        return
         await this.submit(fc);
     }
 }
