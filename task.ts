@@ -1,7 +1,9 @@
 import moment from 'moment';
+import { Feature } from '@tak-ps/node-cot'
 import { Static, TSchema, Type } from '@sinclair/typebox';
-import { Feature, Polygon } from 'geojson';
-import ETL, { Event, SchemaType, handler as internal, local, InputFeatureCollection, InputFeature, InvocationType, DataFlowType } from '@tak-ps/etl';
+import { Feature as GeoJSONFeature, Polygon } from 'geojson';
+
+import ETL, { Event, SchemaType, handler as internal, local, InvocationType, DataFlowType } from '@tak-ps/etl';
 
 export default class Task extends ETL {
     static name = 'etl-caic';
@@ -44,8 +46,8 @@ export default class Task extends ETL {
 
         if (!res.ok) throw new Error('Error fetching Forecast Geometries');
 
-        const featMap = new Map<string, Feature>();
-        (await res.json()).features.map((feat: Feature) => {
+        const featMap = new Map<string, GeoJSONFeature>();
+        (await res.json()).features.map((feat: GeoJSONFeature) => {
             featMap.set(String(feat.id), feat);
         });
 
@@ -56,7 +58,7 @@ export default class Task extends ETL {
         if (!res2.ok) throw new Error('Error fetching Forecast');
         const products = await res2.json();
 
-        const fc: Static<typeof InputFeatureCollection> = {
+        const fc: Static<typeof Feature.InputFeatureCollection> = {
             type: 'FeatureCollection',
             features: []
         };
@@ -119,7 +121,7 @@ export default class Task extends ETL {
             if (severity.indexOf(f.dangerRatings.days[0].tln) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].tln);
             if (severity.indexOf(f.dangerRatings.days[0].alp) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].alp);
 
-            const feature: Static<typeof InputFeature> = {
+            const feature: Static<typeof Feature.InputFeature> = {
                 id: `caic-${f.areaId}`,
                 type: 'Feature',
                 properties: {
