@@ -162,7 +162,6 @@ export default class Task extends ETL {
             }
         }
 
-        return
         await this.submit(fc);
     }
 }
