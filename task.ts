@@ -1,9 +1,55 @@
-import moment from 'moment';
 import { Feature } from '@tak-ps/node-cot'
 import { Static, TSchema, Type } from '@sinclair/typebox';
 import { Feature as GeoJSONFeature, Polygon } from 'geojson';
+import { fetch } from '@tak-ps/etl';
 
 import ETL, { Event, SchemaType, handler as internal, local, InvocationType, DataFlowType } from '@tak-ps/etl';
+
+const FeatureCollectionSchema = Type.Object({
+    type: Type.Literal('FeatureCollection'),
+    features: Type.Array(Type.Object({
+        type: Type.Literal('Feature'),
+        id: Type.Union([Type.String(), Type.Number()]),
+        properties: Type.Any(),
+        geometry: Type.Any()
+    }))
+});
+
+const AvalancheForecastSchema = Type.Object({
+    type: Type.Literal('avalancheforecast'),
+    id: Type.String(),
+    title: Type.String(),
+    publicName: Type.String(),
+    polygons: Type.Array(Type.String()),
+    areaId: Type.String(),
+    forecaster: Type.String(),
+    issueDateTime: Type.String(),
+    expiryDateTime: Type.String(),
+    isTranslated: Type.Boolean(),
+    weatherSummary: Type.Unknown(),
+    avalancheSummary: Type.Optional(Type.Object({
+        days: Type.Array(Type.Object({
+            date: Type.String(),
+            content: Type.String()
+        }))
+    })),
+    dangerRatings: Type.Optional(Type.Object({
+        days: Type.Array(Type.Object({
+            alp: Type.String(),
+            tln: Type.String(),
+            btl: Type.String()
+        }))
+    }))
+});
+
+const ProductSchema = Type.Array(
+    Type.Union([
+        AvalancheForecastSchema,
+        Type.Object({
+            type: Type.String(),
+        }, { additionalProperties: true })
+    ])
+);
 
 export default class Task extends ETL {
     static name = 'etl-caic';
@@ -39,16 +85,18 @@ export default class Task extends ETL {
     async control(): Promise<void> {
         //const layer = await this.layer();
 
-        const dateTime = moment().toISOString();
+        const dateTime = new Date().toISOString();
         const res = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%2Farea%3FproductType%3Davalancheforecast%26datetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dfalse`, {
             method: 'GET'
         });
 
         if (!res.ok) throw new Error('Error fetching Forecast Geometries');
 
+        const areas = await res.typed(FeatureCollectionSchema);
+
         const featMap = new Map<string, GeoJSONFeature>();
-        (await res.json()).features.map((feat: GeoJSONFeature) => {
-            featMap.set(String(feat.id), feat);
+        areas.features.map((feat) => {
+            featMap.set(String(feat.id), feat as GeoJSONFeature);
         });
 
         const res2 = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%3Fdatetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dfalse`, {
@@ -56,39 +104,14 @@ export default class Task extends ETL {
         });
 
         if (!res2.ok) throw new Error('Error fetching Forecast');
-        const products = await res2.json();
+        const products = await res2.typed(ProductSchema);
 
         const fc: Static<typeof Feature.InputFeatureCollection> = {
             type: 'FeatureCollection',
             features: []
         };
 
-        const forecasts: Array<{
-            id: string;
-            title: string;
-            publicName: string;
-            type: string;
-            polygons: Array<string>;
-            areaId: string;
-            forecaster: string;
-            issueDateTime: string;
-            expiryDateTime: string;
-            isTranslated: boolean;
-            weatherSummary: unknown;
-            avalancheSummary: {
-                days: Array<{
-                    date: string;
-                    content: string;
-                }>
-            }
-            dangerRatings: {
-                days: Array<{
-                    alp: string;
-                    tln: string;
-                    btl: string;
-                }>
-            }
-        }> = products.filter((f: any) => { return f.type === 'avalancheforecast' });
+        const forecasts = products.filter((f): f is Static<typeof AvalancheForecastSchema> => f.type === 'avalancheforecast');
 
         const severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating' ];
 
@@ -111,7 +134,8 @@ export default class Task extends ETL {
         };
 
         for (const f of forecasts) {
-            if (!f.avalancheSummary.days.length) continue;
+            if (!f.avalancheSummary || !f.avalancheSummary.days?.length) continue;
+            if (!f.dangerRatings || !f.dangerRatings.days?.length) continue;
 
             const featGeometry = featMap.get(f.areaId);
             if (!featGeometry) continue;
