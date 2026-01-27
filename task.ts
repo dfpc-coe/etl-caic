@@ -18,7 +18,7 @@ const FeatureCollectionSchema = Type.Object({
 const AvalancheForecastSchema = Type.Object({
     type: Type.Literal('avalancheforecast'),
     id: Type.String(),
-    title: Type.String(),
+    title: Type.Optional(Type.String()),
     publicName: Type.String(),
     polygons: Type.Array(Type.String()),
     areaId: Type.String(),
