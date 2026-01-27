@@ -10,6 +10,12 @@
 
 ## Version History
 
+### v3.7.0
+
+- :arrow_up: Update Core Dependencies
+- :arrow_up: Remove `moment` dependency
+- :rocket: Strongly Type API Responses
+
 ### v3.6.0
 
 - :arrow_up: Update Core Dependencies
