@@ -10,6 +10,14 @@
 
 ## Version History
 
+### Pending Release
+
+### v3.15.0
+
+- :bug: Fetch forecasts from the new `/avid` API base after the CAIC site rebuild removed `/api-proxy/avid`
+- :bug: Handle `earlySeason`, `offSeason`, and `noForecast` danger ratings
+- :rocket: Make `publicName`, `forecaster`, and `isTranslated` optional as they are no longer returned
+
 ### v3.14.0
 
 - :arrow_up: Update Core Dependencies

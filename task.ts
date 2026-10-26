@@ -19,14 +19,14 @@ const AvalancheForecastSchema = Type.Object({
     type: Type.Literal('avalancheforecast'),
     id: Type.String(),
     title: Type.Optional(Type.String()),
-    publicName: Type.String(),
+    publicName: Type.Optional(Type.String()),
     polygons: Type.Array(Type.String()),
     areaId: Type.String(),
-    forecaster: Type.String(),
+    forecaster: Type.Optional(Type.String()),
     issueDateTime: Type.String(),
     expiryDateTime: Type.String(),
-    isTranslated: Type.Boolean(),
-    weatherSummary: Type.Unknown(),
+    isTranslated: Type.Optional(Type.Boolean()),
+    weatherSummary: Type.Optional(Type.Unknown()),
     avalancheSummary: Type.Optional(Type.Object({
         days: Type.Array(Type.Object({
             date: Type.String(),
@@ -67,10 +67,10 @@ export default class Task extends ETL {
                 })
             } else {
                 return Type.Object({
-                    forecaster: Type.String(),
+                    forecaster: Type.Optional(Type.String()),
                     issueDateTime: Type.String({ format: 'date-time' }),
                     expiryDateTime: Type.String(),
-                    isTranslated: Type.Boolean(),
+                    isTranslated: Type.Optional(Type.Boolean()),
                     rating: Type.String(),
                     ratingAbove: Type.String(),
                     ratingNear: Type.String(),
@@ -86,7 +86,7 @@ export default class Task extends ETL {
         //const layer = await this.layer();
 
         const dateTime = new Date().toISOString();
-        const res = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%2Farea%3FproductType%3Davalancheforecast%26datetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dfalse`, {
+        const res = await fetch(`https://avalanche.state.co.us/avid/products/all/area?productType=avalancheforecast&datetime=${encodeURIComponent(dateTime)}&includeExpired=false`, {
             method: 'GET'
         });
 
@@ -99,7 +99,7 @@ export default class Task extends ETL {
             featMap.set(String(feat.id), feat as GeoJSONFeature);
         });
 
-        const res2 = await fetch(`https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=%2Fproducts%2Fall%3Fdatetime%3D${encodeURIComponent(dateTime)}%26includeExpired%3Dfalse`, {
+        const res2 = await fetch(`https://avalanche.state.co.us/avid/products/all?datetime=${encodeURIComponent(dateTime)}&includeExpired=false`, {
             method: 'GET'
         });
 
@@ -113,7 +113,7 @@ export default class Task extends ETL {
 
         const forecasts = products.filter((f): f is Static<typeof AvalancheForecastSchema> => f.type === 'avalancheforecast');
 
-        const severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating' ];
+        const severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating', 'earlySeason', 'offSeason', 'noForecast' ];
 
         const humanSeverity: Record<string, string> = {
             extreme: 'Extreme',
@@ -121,7 +121,10 @@ export default class Task extends ETL {
             considerable: 'Considerable',
             moderate: 'Moderate',
             low: 'Low',
-            noRating: 'No Rating'
+            noRating: 'No Rating',
+            earlySeason: 'Early Season',
+            offSeason: 'Off Season',
+            noForecast: 'No Forecast'
         }
 
         const fills: Record<string, string> = {
@@ -130,7 +133,10 @@ export default class Task extends ETL {
             considerable: '#f8931d',
             moderate: '#fef102',
             low: '#4db748',
-            noRating: '#ffffff'
+            noRating: '#cccccc',
+            earlySeason: '#cccccc',
+            offSeason: '#cccccc',
+            noForecast: '#cccccc'
         };
 
         for (const f of forecasts) {
@@ -140,10 +146,11 @@ export default class Task extends ETL {
             const featGeometry = featMap.get(f.areaId);
             if (!featGeometry) continue;
 
-            let severityIndex = severity.indexOf('noRating');
-            if (severity.indexOf(f.dangerRatings.days[0].btl) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].btl);
-            if (severity.indexOf(f.dangerRatings.days[0].tln) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].tln);
-            if (severity.indexOf(f.dangerRatings.days[0].alp) < severityIndex) severityIndex = severity.indexOf(f.dangerRatings.days[0].alp);
+            let severityIndex = severity.indexOf('noForecast');
+            for (const rating of [f.dangerRatings.days[0].btl, f.dangerRatings.days[0].tln, f.dangerRatings.days[0].alp]) {
+                const idx = severity.indexOf(rating);
+                if (idx !== -1 && idx < severityIndex) severityIndex = idx;
+            }
 
             const feature: Static<typeof Feature.InputFeature> = {
                 id: `caic-${f.areaId}`,
