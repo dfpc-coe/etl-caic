@@ -2,6 +2,17 @@ import { Feature } from '@tak-ps/node-cot'
 import { Static, TSchema, Type } from '@sinclair/typebox';
 import { Feature as GeoJSONFeature, Polygon } from 'geojson';
 import { fetch } from '@tak-ps/etl';
+import {
+    AvalancheForecast,
+    RegionalDiscussion,
+    SEVERITY_FILL,
+    SEVERITY_LABEL,
+    areaName,
+    forecastRemarks,
+    forecastUrl,
+    interiorPoint,
+    worstRating
+} from './lib/forecast.js';
 
 import ETL, { Event, SchemaType, handler as internal, local, InvocationType, DataFlowType } from '@tak-ps/etl';
 
@@ -15,36 +26,10 @@ const FeatureCollectionSchema = Type.Object({
     }))
 });
 
-const AvalancheForecastSchema = Type.Object({
-    type: Type.Literal('avalancheforecast'),
-    id: Type.String(),
-    title: Type.Optional(Type.String()),
-    publicName: Type.Optional(Type.String()),
-    polygons: Type.Array(Type.String()),
-    areaId: Type.String(),
-    forecaster: Type.Optional(Type.String()),
-    issueDateTime: Type.String(),
-    expiryDateTime: Type.String(),
-    isTranslated: Type.Optional(Type.Boolean()),
-    weatherSummary: Type.Optional(Type.Unknown()),
-    avalancheSummary: Type.Optional(Type.Object({
-        days: Type.Array(Type.Object({
-            date: Type.String(),
-            content: Type.String()
-        }))
-    })),
-    dangerRatings: Type.Optional(Type.Object({
-        days: Type.Array(Type.Object({
-            alp: Type.String(),
-            tln: Type.String(),
-            btl: Type.String()
-        }))
-    }))
-});
-
 const ProductSchema = Type.Array(
     Type.Union([
-        AvalancheForecastSchema,
+        AvalancheForecast,
+        RegionalDiscussion,
         Type.Object({
             type: Type.String(),
         }, { additionalProperties: true })
@@ -67,9 +52,12 @@ export default class Task extends ETL {
                 })
             } else {
                 return Type.Object({
+                    region: Type.Optional(Type.String()),
+                    url: Type.String({ format: 'uri' }),
                     forecaster: Type.Optional(Type.String()),
                     issueDateTime: Type.String({ format: 'date-time' }),
-                    expiryDateTime: Type.String(),
+                    expiryDateTime: Type.String({ format: 'date-time' }),
+                    ratingDateTime: Type.Optional(Type.String({ format: 'date-time' })),
                     isTranslated: Type.Optional(Type.Boolean()),
                     rating: Type.String(),
                     ratingAbove: Type.String(),
@@ -83,8 +71,6 @@ export default class Task extends ETL {
     }
 
     async control(): Promise<void> {
-        //const layer = await this.layer();
-
         const dateTime = new Date().toISOString();
         const res = await fetch(`https://avalanche.state.co.us/avid/products/all/area?productType=avalancheforecast&datetime=${encodeURIComponent(dateTime)}&includeExpired=false`, {
             method: 'GET'
@@ -111,33 +97,8 @@ export default class Task extends ETL {
             features: []
         };
 
-        const forecasts = products.filter((f): f is Static<typeof AvalancheForecastSchema> => f.type === 'avalancheforecast');
-
-        const severity = [ 'extreme', 'high', 'considerable', 'moderate', 'low', 'noRating', 'earlySeason', 'offSeason', 'noForecast' ];
-
-        const humanSeverity: Record<string, string> = {
-            extreme: 'Extreme',
-            high: 'High',
-            considerable: 'Considerable',
-            moderate: 'Moderate',
-            low: 'Low',
-            noRating: 'No Rating',
-            earlySeason: 'Early Season',
-            offSeason: 'Off Season',
-            noForecast: 'No Forecast'
-        }
-
-        const fills: Record<string, string> = {
-            extreme: '#221e1f',
-            high: '#ee1d23',
-            considerable: '#f8931d',
-            moderate: '#fef102',
-            low: '#4db748',
-            noRating: '#cccccc',
-            earlySeason: '#cccccc',
-            offSeason: '#cccccc',
-            noForecast: '#cccccc'
-        };
+        const forecasts = products.filter((f): f is Static<typeof AvalancheForecast> => f.type === 'avalancheforecast');
+        const discussions = products.filter((f): f is Static<typeof RegionalDiscussion> => f.type === 'regionaldiscussion');
 
         for (const f of forecasts) {
             if (!f.avalancheSummary || !f.avalancheSummary.days?.length) continue;
@@ -146,30 +107,33 @@ export default class Task extends ETL {
             const featGeometry = featMap.get(f.areaId);
             if (!featGeometry) continue;
 
-            let severityIndex = severity.indexOf('noForecast');
-            for (const rating of [f.dangerRatings.days[0].btl, f.dangerRatings.days[0].tln, f.dangerRatings.days[0].alp]) {
-                const idx = severity.indexOf(rating);
-                if (idx !== -1 && idx < severityIndex) severityIndex = idx;
-            }
+            const today = f.dangerRatings.days[0];
+            const rating = worstRating(today);
+            const name = featGeometry.properties?.name || areaName(f, discussions);
+            const point = interiorPoint(featGeometry.geometry, featGeometry.properties?.centroid);
 
             const feature: Static<typeof Feature.InputFeature> = {
                 id: `caic-${f.areaId}`,
                 type: 'Feature',
                 properties: {
-                    callsign: humanSeverity[severity[severityIndex]],
-                    fill: fills[severity[severityIndex]],
+                    callsign: name ? `${name} - ${SEVERITY_LABEL[rating]}` : SEVERITY_LABEL[rating],
+                    fill: SEVERITY_FILL[rating],
                     'fill-opacity': 0.5,
-                    stroke: fills[severity[severityIndex]],
+                    stroke: SEVERITY_FILL[rating],
                     'stroke-opacity': 0.75,
-                    remarks: f.avalancheSummary.days.length ? f.avalancheSummary.days[0].content : 'No Remarks',
+                    remarks: forecastRemarks(f, name, point),
                     metadata: {
+                        region: name,
+                        url: forecastUrl(point),
                         forecaster: f.forecaster,
                         issueDateTime: f.issueDateTime,
                         expiryDateTime: f.expiryDateTime,
+                        ratingDateTime: today.date,
                         isTranslated: f.isTranslated,
-                        ratingAbove: f.dangerRatings.days[0].alp,
-                        ratingNear: f.dangerRatings.days[0].tln,
-                        ratingBelow: f.dangerRatings.days[0].btl,
+                        rating: SEVERITY_LABEL[rating],
+                        ratingAbove: today.alp,
+                        ratingNear: today.tln,
+                        ratingBelow: today.btl,
                     }
                 },
                 geometry: featGeometry.geometry as Polygon

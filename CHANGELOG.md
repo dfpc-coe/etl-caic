@@ -10,11 +10,20 @@
 
 ## Version History
 
+### Pending Release
+
+### v3.17.0
+
+- :tada: Render forecast remarks as Markdown - issue & expiry times in Mountain time, a danger rating table per forecast day, the avalanche problems with likelihood, size & aspect/elevation, and the summary converted from CAIC HTML to Markdown
+- :tada: Name each forecast area after the Regional Discussion covering most of its polygons (ie: `Southern Mountains - Moderate`) as CAIC no longer publishes zone names - a product `title`/`publicName` or area `name` is still preferred when present
+- :tada: Add a Links section to the remarks that opens the forecast area on the CAIC map alongside a `url` Output field
+- :rocket: Add `region`, `rating` & `ratingDateTime` to the Output schema
+- :white_check_mark: Add `lib/forecast.ts` unit tests
+- :arrow_up: Update `@tak-ps/etl` to v11
+
 ### v3.16.0
 
 - :arrow_up: Update Core Dependencies
-
-### Pending Release
 
 ### v3.15.0
 
