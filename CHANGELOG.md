@@ -12,6 +12,10 @@
 
 ### Pending Release
 
+### v3.17.1
+
+- :bug: Add lib file
+
 ### v3.17.0
 
 - :tada: Render forecast remarks as Markdown - issue & expiry times in Mountain time, a danger rating table per forecast day, the avalanche problems with likelihood, size & aspect/elevation, and the summary converted from CAIC HTML to Markdown
