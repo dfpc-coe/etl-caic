@@ -12,6 +12,10 @@
 
 ### Pending Release
 
+### v3.18.1
+
+- :rocket: Explicitly submit forecast zones as `u-d-f` shapes - an untyped Polygon is otherwise delivered by CloudTAK as an `a-f-G` marker with a companion polyline
+
 ### v3.18.0
 
 - :arrow_up: Update `@tak-ps/etl` to 11.x - Output schemas are published as named schemas, as required by CloudTAK v14

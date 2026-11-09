@@ -117,6 +117,7 @@ export default class Task extends ETL {
                 type: 'Feature',
                 properties: {
                     callsign: name ? `${name} - ${SEVERITY_LABEL[rating]}` : SEVERITY_LABEL[rating],
+                    type: 'u-d-f',
                     fill: SEVERITY_FILL[rating],
                     'fill-opacity': 0.5,
                     stroke: SEVERITY_FILL[rating],
