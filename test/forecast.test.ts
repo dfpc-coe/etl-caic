@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -58,6 +59,10 @@ const discussions = [{
     issueDateTime: '2026-11-04T23:30:00Z',
     expiryDateTime: '2026-11-05T23:30:00Z'
 }];
+
+function square(x: number, y: number): number[][][] {
+    return [[[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1], [x, y]]];
+}
 
 test('htmlToMarkdown converts paragraphs, links, emphasis and entities', () => {
     assert.equal(
@@ -148,8 +153,6 @@ test('forecastRemarks omits empty sections', () => {
 });
 
 test('interiorPoint keeps a centroid inside the area and otherwise picks a point inside', () => {
-    const square = (x: number, y: number) => [[[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1], [x, y]]];
-
     assert.deepEqual(interiorPoint({ type: 'Polygon', coordinates: square(0, 0) }, [0.5, 0.5]), [0.5, 0.5]);
 
     const twoParts = { type: 'MultiPolygon' as const, coordinates: [square(0, 0), square(4, 4)] };

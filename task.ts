@@ -1,6 +1,6 @@
 import { Feature } from '@tak-ps/node-cot'
 import { Static, TSchema, Type } from '@sinclair/typebox';
-import { Feature as GeoJSONFeature, Polygon } from 'geojson';
+import type { Feature as GeoJSONFeature, Geometry, LineString, Point, Polygon, Position } from 'geojson';
 import { fetch } from '@tak-ps/etl';
 import {
     AvalancheForecast,
@@ -36,6 +36,34 @@ const ProductSchema = Type.Array(
     ])
 );
 
+function areaProperties(feat: GeoJSONFeature): { name?: string, centroid?: Position } {
+    const props: Record<string, unknown> = feat.properties ?? {};
+    const { name, centroid } = props;
+
+    return {
+        name: typeof name === 'string' ? name : undefined,
+        centroid: Array.isArray(centroid) && centroid.every((c) => typeof c === 'number') ? centroid : undefined
+    };
+}
+
+function splitGeometry(geometry: Geometry): Array<Point | LineString | Polygon> {
+    if (geometry.type === 'MultiPoint') {
+        return geometry.coordinates.map((coordinates) => ({ type: 'Point', coordinates }));
+    }
+
+    if (geometry.type === 'MultiLineString') {
+        return geometry.coordinates.map((coordinates) => ({ type: 'LineString', coordinates }));
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+        return geometry.coordinates.map((coordinates) => ({ type: 'Polygon', coordinates }));
+    }
+
+    if (geometry.type === 'GeometryCollection') return [];
+
+    return [ geometry ];
+}
+
 export default class Task extends ETL {
     static name = 'etl-caic';
     static flow = [ DataFlowType.Incoming ];
@@ -45,29 +73,27 @@ export default class Task extends ETL {
         type: SchemaType = SchemaType.Input,
         flow: DataFlowType = DataFlowType.Incoming
     ): Promise<TSchema> {
-        if (flow === DataFlowType.Incoming) {
-            if (type === SchemaType.Input) {
-                return Type.Object({
-                    'DEBUG': Type.Boolean({ description: 'Print results in logs', default: false, })
-                })
-            } else {
-                return Type.Object({
-                    region: Type.Optional(Type.String()),
-                    url: Type.String({ format: 'uri' }),
-                    forecaster: Type.Optional(Type.String()),
-                    issueDateTime: Type.String({ format: 'date-time' }),
-                    expiryDateTime: Type.String({ format: 'date-time' }),
-                    ratingDateTime: Type.Optional(Type.String({ format: 'date-time' })),
-                    isTranslated: Type.Optional(Type.Boolean()),
-                    rating: Type.String(),
-                    ratingAbove: Type.String(),
-                    ratingNear: Type.String(),
-                    ratingBelow: Type.String()
-                });
-            }
-        } else {
-            return Type.Object({});
+        if (flow !== DataFlowType.Incoming) return Type.Object({});
+
+        if (type === SchemaType.Input) {
+            return Type.Object({
+                'DEBUG': Type.Boolean({ description: 'Print results in logs', default: false, })
+            });
         }
+
+        return Type.Object({
+            region: Type.Optional(Type.String()),
+            url: Type.String({ format: 'uri' }),
+            forecaster: Type.Optional(Type.String()),
+            issueDateTime: Type.String({ format: 'date-time' }),
+            expiryDateTime: Type.String({ format: 'date-time' }),
+            ratingDateTime: Type.Optional(Type.String({ format: 'date-time' })),
+            isTranslated: Type.Optional(Type.Boolean()),
+            rating: Type.String(),
+            ratingAbove: Type.String(),
+            ratingNear: Type.String(),
+            ratingBelow: Type.String()
+        });
     }
 
     async control(): Promise<void> {
@@ -81,9 +107,9 @@ export default class Task extends ETL {
         const areas = await res.typed(FeatureCollectionSchema);
 
         const featMap = new Map<string, GeoJSONFeature>();
-        areas.features.map((feat) => {
-            featMap.set(String(feat.id), feat as GeoJSONFeature);
-        });
+        for (const feat of areas.features) {
+            featMap.set(String(feat.id), feat);
+        }
 
         const res2 = await fetch(`https://avalanche.state.co.us/avid/products/all?datetime=${encodeURIComponent(dateTime)}&includeExpired=false`, {
             method: 'GET'
@@ -109,53 +135,44 @@ export default class Task extends ETL {
 
             const today = f.dangerRatings.days[0];
             const rating = worstRating(today);
-            const name = featGeometry.properties?.name || areaName(f, discussions);
-            const point = interiorPoint(featGeometry.geometry, featGeometry.properties?.centroid);
+            const area = areaProperties(featGeometry);
+            const name = area.name || areaName(f, discussions);
+            const point = interiorPoint(featGeometry.geometry, area.centroid);
 
-            const feature: Static<typeof Feature.InputFeature> = {
-                id: `caic-${f.areaId}`,
-                type: 'Feature',
-                properties: {
-                    callsign: name ? `${name} - ${SEVERITY_LABEL[rating]}` : SEVERITY_LABEL[rating],
-                    type: 'u-d-f',
-                    fill: SEVERITY_FILL[rating],
-                    'fill-opacity': 0.5,
-                    stroke: SEVERITY_FILL[rating],
-                    'stroke-opacity': 0.75,
-                    remarks: forecastRemarks(f, name, point),
-                    metadata: {
-                        region: name,
-                        url: forecastUrl(point),
-                        forecaster: f.forecaster,
-                        issueDateTime: f.issueDateTime,
-                        expiryDateTime: f.expiryDateTime,
-                        ratingDateTime: today.date,
-                        isTranslated: f.isTranslated,
-                        rating: SEVERITY_LABEL[rating],
-                        ratingAbove: today.alp,
-                        ratingNear: today.tln,
-                        ratingBelow: today.btl,
-                    }
-                },
-                geometry: featGeometry.geometry as Polygon
+            const id = `caic-${f.areaId}`;
+            const properties: Static<typeof Feature.InputFeature>['properties'] = {
+                callsign: name ? `${name} - ${SEVERITY_LABEL[rating]}` : SEVERITY_LABEL[rating],
+                type: 'u-d-f',
+                fill: SEVERITY_FILL[rating],
+                'fill-opacity': 0.5,
+                stroke: SEVERITY_FILL[rating],
+                'stroke-opacity': 0.75,
+                remarks: forecastRemarks(f, name, point),
+                metadata: {
+                    region: name,
+                    url: forecastUrl(point),
+                    forecaster: f.forecaster,
+                    issueDateTime: f.issueDateTime,
+                    expiryDateTime: f.expiryDateTime,
+                    ratingDateTime: today.date,
+                    isTranslated: f.isTranslated,
+                    rating: SEVERITY_LABEL[rating],
+                    ratingAbove: today.alp,
+                    ratingNear: today.tln,
+                    ratingBelow: today.btl,
+                }
             };
 
-            if (feature.geometry.type.startsWith('Multi')) {
-                feature.geometry.coordinates.forEach((coords: any, idx: number) => {
-                    fc.features.push({
-                        id: feature.id + '-' + idx,
-                        type: 'Feature',
-                        properties: feature.properties,
-                        geometry: {
-                            // @ts-expect-error -- Cast to ENUM
-                            type: feature.geometry.type.replace('Multi', ''),
-                            coordinates: coords
-                        }
-                    });
+            const multi = featGeometry.geometry.type.startsWith('Multi');
+
+            splitGeometry(featGeometry.geometry).forEach((geometry, idx) => {
+                fc.features.push({
+                    id: multi ? `${id}-${idx}` : id,
+                    type: 'Feature',
+                    properties,
+                    geometry
                 });
-            } else {
-                fc.features.push(feature)
-            }
+            });
         }
 
         await this.submit(fc);
@@ -164,6 +181,6 @@ export default class Task extends ETL {
 
 await local(await Task.init(import.meta.url), import.meta.url);
 
-export async function handler(event: Event = {}) {
-    return await internal(await Task.init(import.meta.url), event);
+export async function handler(event: Event = {}): ReturnType<typeof internal> {
+    return internal(await Task.init(import.meta.url), event);
 }

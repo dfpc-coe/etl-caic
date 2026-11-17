@@ -122,9 +122,9 @@ const ENTITY: Record<string, string> = {
 };
 
 function decodeEntities(text: string): string {
-    return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (match, entity: string) => {
+    return text.replaceAll(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (match, entity: string) => {
         if (entity.startsWith('#')) {
-            const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+            const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : Number(entity.slice(1));
             return Number.isNaN(code) ? match : String.fromCodePoint(code);
         }
 
@@ -138,20 +138,20 @@ function decodeEntities(text: string): string {
  */
 export function htmlToMarkdown(html: string): string {
     const text = html
-        .replace(/\r?\n/g, ' ')
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<(strong|b)\b[^>]*>(.*?)<\/\1>/gis, (_, __, inner: string) => inner.trim() ? `**${inner.trim()}**` : '')
-        .replace(/<(em|i)\b[^>]*>(.*?)<\/\1>/gis, (_, __, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
-        .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis, (_, href: string, inner: string) => `[${inner.trim()}](${href})`)
-        .replace(/<li\b[^>]*>(.*?)<\/li>/gis, (_, inner: string) => `\n- ${inner.trim()}`)
-        .replace(/<\/(p|div|ul|ol|h[1-6])>/gi, '\n\n')
-        .replace(/<[^>]+>/g, '');
+        .replaceAll(/\r?\n/g, ' ')
+        .replaceAll(/<br\s*\/?>/gi, '\n')
+        .replaceAll(/<(strong|b)\b[^>]*>(.*?)<\/\1>/gis, (_, __, inner: string) => inner.trim() ? `**${inner.trim()}**` : '')
+        .replaceAll(/<(em|i)\b[^>]*>(.*?)<\/\1>/gis, (_, __, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
+        .replaceAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis, (_, href: string, inner: string) => `[${inner.trim()}](${href})`)
+        .replaceAll(/<li\b[^>]*>(.*?)<\/li>/gis, (_, inner: string) => `\n- ${inner.trim()}`)
+        .replaceAll(/<\/(p|div|ul|ol|h[1-6])>/gi, '\n\n')
+        .replaceAll(/<[^>]+>/g, '');
 
     return decodeEntities(text)
         .split('\n')
-        .map((line) => line.replace(/[ \t\u00a0]+/g, ' ').trim())
+        .map((line) => line.replaceAll(/[ \t\u00A0]+/g, ' ').trim())
         .join('\n')
-        .replace(/\n{3,}/g, '\n\n')
+        .replaceAll(/\n{3,}/g, '\n\n')
         .trim();
 }
 
@@ -178,8 +178,12 @@ export function formatDay(iso: string): string {
     }).format(new Date(iso));
 }
 
+function isSeverity(rating: string): rating is Severity {
+    return SEVERITY.some((severity) => severity === rating);
+}
+
 export function severityLabel(rating: string): string {
-    return SEVERITY_LABEL[rating as Severity] ?? rating;
+    return isSeverity(rating) ? SEVERITY_LABEL[rating] : rating;
 }
 
 /**
@@ -189,8 +193,7 @@ export function worstRating(day: Static<typeof DangerDay>): Severity {
     let worst: Severity = 'noForecast';
 
     for (const rating of [day.btl, day.tln, day.alp]) {
-        const idx = SEVERITY.indexOf(rating as Severity);
-        if (idx !== -1 && idx < SEVERITY.indexOf(worst)) worst = SEVERITY[idx];
+        if (isSeverity(rating) && SEVERITY.indexOf(rating) < SEVERITY.indexOf(worst)) worst = rating;
     }
 
     return worst;
@@ -262,7 +265,7 @@ function problemLine(problem: Static<typeof AvalancheProblem>): string {
 
     return [
         `- **${PROBLEM_LABEL[problem.type] ?? problem.type}**`,
-        details.length ? ` - ${details.join(', ')}` : '',
+        details.length > 0 ? ` - ${details.join(', ')}` : '',
         where ? ` (${where})` : ''
     ].join('');
 }
@@ -303,7 +306,7 @@ export function interiorPoint(geometry: Geometry, centroid?: Position): Position
 
     if (centroid && polygons.some((polygon) => inPolygon(centroid, polygon))) return centroid;
 
-    for (const polygon of [...polygons].sort((a, b) => b[0].length - a[0].length)) {
+    for (const polygon of polygons.toSorted((a, b) => b[0].length - a[0].length)) {
         const candidate = ringAverage(polygon[0]);
         if (inPolygon(candidate, polygon)) return candidate;
     }
@@ -336,7 +339,7 @@ export function forecastRemarks(
     ];
 
     const days = forecast.dangerRatings?.days ?? [];
-    if (days.length) {
+    if (days.length > 0) {
         lines.push(
             '',
             '## Danger Rating',
@@ -351,8 +354,8 @@ export function forecastRemarks(
     }
 
     const problems = forecast.avalancheProblems?.days?.[0] ?? [];
-    if (problems.length) {
-        lines.push('', '## Avalanche Problems', '', ...problems.map(problemLine));
+    if (problems.length > 0) {
+        lines.push('', '## Avalanche Problems', '', ...problems.map((problem) => problemLine(problem)));
     }
 
     for (const day of forecast.avalancheSummary?.days ?? []) {

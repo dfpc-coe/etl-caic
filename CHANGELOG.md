@@ -12,6 +12,12 @@
 
 ### Pending Release
 
+### v3.19.0 - 2026-11-17
+
+- :arrow_up: Migrate to TS7 for blazing build times
+- :arrow_up: Migrate off ESLint onto OXLint for blazing lint times
+- :bug: Fix numerous small bugs in the codebase surfaced by OXLint
+
 ### v3.18.1
 
 - :rocket: Explicitly submit forecast zones as `u-d-f` shapes - an untyped Polygon is otherwise delivered by CloudTAK as an `a-f-G` marker with a companion polyline
